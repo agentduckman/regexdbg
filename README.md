@@ -1,5 +1,9 @@
 # regexdbg
 
+## AI Disclaimer
+THIS APPLICATION IS VIBE CODED.
+Do not run this application in an environment where security is a priority. Review the code before using it. Clankers do not actually know how to write secure code.
+
 A terminal UI PCRE2 regex debugger for developing detections against raw byte content — malware samples, shellcode, mixed encodings, binary blobs. Type a pattern, see every match highlighted in the file, inspect capture groups by byte offset.
 
 ```

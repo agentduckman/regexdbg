@@ -4,11 +4,11 @@ mod input;
 mod render;
 
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, IsTerminal, Read};
 use std::time::Duration;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture},
+    event::{self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -20,25 +20,25 @@ use app::App;
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    let (buf, filename): (Vec<u8>, String) = if args.len() > 1 {
+    let (buf, filename, editable): (Vec<u8>, String, bool) = if args.len() > 1 {
         let path = &args[1];
-        (fs::read(path)?, path.clone())
+        (fs::read(path)?, path.clone(), false)
+    } else if io::stdin().is_terminal() {
+        // No file argument and stdin is a tty: start in scratch (editable) mode.
+        (Vec::new(), "<scratch>".to_string(), true)
     } else {
-        // Read file content from stdin; open /dev/tty for keyboard events.
+        // Read file content from stdin; crossterm falls back to /dev/tty for key events.
         let mut data = Vec::new();
         io::stdin().read_to_end(&mut data)?;
-        (data, "<stdin>".to_string())
+        (data, "<stdin>".to_string(), false)
     };
 
-    // If content came from stdin, crossterm will fall back to /dev/tty automatically
-    // for key events because stdin is not a tty.
-
-    let mut app = App::new(buf, filename);
+    let mut app = App::new(buf, filename, editable);
 
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, EnableBracketedPaste)?;
     let backend  = CrosstermBackend::new(stdout);
     let mut term = Terminal::new(backend)?;
 
@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(term.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+    execute!(term.backend_mut(), LeaveAlternateScreen, DisableMouseCapture, DisableBracketedPaste)?;
     term.show_cursor()?;
 
     result

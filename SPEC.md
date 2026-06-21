@@ -80,10 +80,8 @@ logic must never get baked into the TUI layer.
 
 ## Out of scope for v1 (do NOT build — but do NOT architect them out)
 - Railroad / NFA diagram (planned later as a `core` consumer).
-- Substitution / replace preview.
 - Full backtracking step-debugger.
 - Multiple files / directory / corpus matching.
-- Editing or saving the input file.
 
 ## Tests
 - Unit tests in `core` ONLY:

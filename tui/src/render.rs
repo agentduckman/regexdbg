@@ -6,13 +6,14 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 
-use crate::app::{App, Focus};
+use crate::app::{App, Focus, VimMode};
 use crate::byte_display::byte_range_to_col_range;
 
 // Colour scheme
 const STYLE_MATCH:    Style = Style::new().bg(Color::Yellow).fg(Color::Black);
 const STYLE_CAPTURE:  Style = Style::new().bg(Color::Cyan).fg(Color::Black);
 const STYLE_SELECTED: Style = Style::new().bg(Color::Green).fg(Color::Black).add_modifier(Modifier::BOLD);
+const STYLE_VISUAL:   Style = Style::new().bg(Color::Blue).fg(Color::White);
 const STYLE_ERROR:    Style = Style::new().fg(Color::Red);
 const STYLE_DIM:      Style = Style::new().fg(Color::DarkGray);
 const STYLE_BOLD:     Style = Style::new().add_modifier(Modifier::BOLD);
@@ -60,14 +61,28 @@ fn draw_pattern(frame: &mut Frame, app: &App, area: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Pattern  (Tab/Esc = content  F1 = help)")
+        .title("Pattern  (Tab = content  i = insert  F1 = help)")
         .border_style(border_style);
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let text = Paragraph::new(app.pattern.as_str());
-    frame.render_widget(text, inner);
+    // Build styled line: highlight visual selection if active.
+    let paragraph = if app.focus == Focus::Pattern && app.vim_mode == VimMode::Visual {
+        let range = app.pattern_visual_range();
+        let before = &app.pattern[..range.start];
+        let selected = &app.pattern[range.clone()];
+        let after   = &app.pattern[range.end..];
+        let line = Line::from(vec![
+            Span::raw(before.to_owned()),
+            Span::styled(selected.to_owned(), STYLE_VISUAL),
+            Span::raw(after.to_owned()),
+        ]);
+        Paragraph::new(line)
+    } else {
+        Paragraph::new(app.pattern.as_str())
+    };
+    frame.render_widget(paragraph, inner);
 
     // Place cursor
     if app.focus == Focus::Pattern {
@@ -90,9 +105,21 @@ fn draw_flags(frame: &mut Frame, _app: &App, area: Rect) {
 }
 
 fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
+    let focused = app.editable && app.focus == Focus::Content;
+    let border_style = if focused {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+    let title = if app.editable {
+        format!("Content  [scratch · {} bytes]", app.buf.len())
+    } else {
+        format!("Content  [{} bytes]", app.buf.len())
+    };
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!("Content  [{} bytes]", app.buf.len()));
+        .title(title)
+        .border_style(border_style);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -117,8 +144,16 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
             app.buf.len() + 1
         };
 
-        // Collect highlight spans: (col_start, col_end, style)
+        // Collect highlight spans: (col_start, col_end, style).
+        // Visual selection goes first (lowest priority — match highlights overdraw it).
         let mut spans_info: Vec<(usize, usize, Style)> = Vec::new();
+
+        if app.vim_mode == VimMode::Visual {
+            let vr = app.visual_range();
+            if let Some((cs, ce)) = byte_range_to_col_range(dl, line_byte_end, vr.start, vr.end) {
+                spans_info.push((cs, ce, STYLE_VISUAL));
+            }
+        }
 
         for (byte_range, is_capture) in app.matches_for_line(dl.byte_start, line_byte_end) {
             if let Some((cs, ce)) = byte_range_to_col_range(dl, line_byte_end, byte_range.start, byte_range.end) {
@@ -144,6 +179,18 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     frame.render_widget(Paragraph::new(lines), inner);
+
+    // Show cursor in editable scratch mode.
+    if focused {
+        let (line_idx, col) = app.cursor_line_col();
+        let screen_row = line_idx.saturating_sub(app.scroll_row);
+        if screen_row < inner.height as usize {
+            frame.set_cursor_position((
+                inner.x + col as u16,
+                inner.y + screen_row as u16,
+            ));
+        }
+    }
 }
 
 /// Slice `text` into styled spans according to highlight ranges over display columns.
@@ -244,11 +291,25 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         let matches = app.matches.len();
         let scroll  = app.scroll_row;
         let total   = app.display_lines.len();
-        Line::from(format!(
+        let base = format!(
             " {}  [BYTE]  line {}/{}  {} match{}",
             app.filename, scroll + 1, total, matches,
             if matches == 1 { "" } else { "es" }
-        ))
+        );
+
+        if app.focus == Focus::Pattern || (app.editable && app.focus == Focus::Content) {
+            let (mode_str, mode_style) = match app.vim_mode {
+                VimMode::Normal => (" -- NORMAL -- ", STYLE_DIM),
+                VimMode::Insert => (" -- INSERT -- ", Style::new().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                VimMode::Visual => (" -- VISUAL -- ", Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            };
+            Line::from(vec![
+                Span::styled(mode_str, mode_style),
+                Span::raw(base),
+            ])
+        } else {
+            Line::from(base)
+        }
     };
 
     frame.render_widget(Paragraph::new(line), area);
@@ -258,15 +319,31 @@ fn draw_help(frame: &mut Frame, area: Rect) {
     let help = vec![
         Line::from(Span::styled("  regexdbg keybindings", STYLE_BOLD)),
         Line::from(""),
-        Line::from("  Tab / Esc      toggle focus (pattern ↔ content)"),
-        Line::from("  / or Enter     focus pattern"),
+        Line::from("  Tab            toggle focus (pattern ↔ content)"),
+        Line::from("  Enter          confirm / switch to content pane"),
         Line::from(""),
+        Line::from(Span::styled("  Pattern box (vim keys):", STYLE_BOLD)),
+        Line::from("  Normal:  h/l  w/b/e  0/^/$  i/I/a/A  x/D"),
+        Line::from("           dd  cc  yy  p/P  v  u"),
+        Line::from("  Insert:  type freely  Esc → Normal"),
+        Line::from("  Visual:  motion to extend  d/y/c"),
+        Line::from("  Tab / Enter → content"),
+        Line::from(""),
+        Line::from(Span::styled("  Content — nav mode (file loaded):", STYLE_BOLD)),
         Line::from("  j/k  ↑/↓       scroll one line"),
         Line::from("  f/b  PgDn/PgUp scroll one page"),
         Line::from("  g/G  Home/End   top / bottom"),
+        Line::from("  n / N           next / previous match"),
+        Line::from("  q / F12         quit"),
         Line::from(""),
-        Line::from("  n               next match"),
-        Line::from("  N               previous match"),
+        Line::from(Span::styled("  Content — scratch mode (vim keys):", STYLE_BOLD)),
+        Line::from("  Normal:  h/j/k/l  w/b/e  0/$/gg/G"),
+        Line::from("           i/I/a/A/o/O  insert mode"),
+        Line::from("           x  dd  yy  p/P  u  v"),
+        Line::from("  Insert:  Esc → Normal  (type freely)"),
+        Line::from("  Visual:  motion to extend  d/y/c"),
+        Line::from("  F3 / F4   next / prev match"),
+        Line::from("  F12 / Ctrl+Q  quit"),
         Line::from(""),
         Line::from(Span::styled("  Inline modifiers (write in pattern):", STYLE_BOLD)),
         Line::from("  (?i)  caseless"),
@@ -277,7 +354,6 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         Line::from("  (?u)  utf+ucp  — UTF-8 + Unicode property support"),
         Line::from("  Combine: (?ims)foo  or  (?i)foo(?-i)bar"),
         Line::from(""),
-        Line::from("  q               quit"),
         Line::from("  F1              this help"),
         Line::from("  F2              copy pattern to clipboard"),
         Line::from(""),
@@ -285,7 +361,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
     ];
 
     // Centre a box.
-    let w = 52u16.min(area.width.saturating_sub(4));
+    let w = 56u16.min(area.width.saturating_sub(4));
     let h = (help.len() as u16 + 2).min(area.height.saturating_sub(4));
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;

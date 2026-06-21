@@ -28,7 +28,8 @@ A terminal UI PCRE2 regex debugger for developing detections against raw byte co
   - Arch: `pacman -S pcre2`
   - macOS: `brew install pcre2`
   - Debian/Ubuntu: `apt install libpcre2-dev`
-- Clipboard utility (for F2 copy — one of):
+- Clipboard utility (for F2 copy):
+  - macOS: built-in (`pbcopy` — no install needed)
   - Wayland: `wl-clipboard` (`wl-copy`)
   - X11: `xclip` or `xsel`
 

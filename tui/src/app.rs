@@ -248,6 +248,7 @@ impl App {
 fn clipboard_write(data: &[u8]) -> Result<(), String> {
     let candidates: &[(&str, &[&str])] = &[
         ("wl-copy",  &[]),
+        ("pbcopy",   &[]),
         ("xclip",    &["-selection", "clipboard"]),
         ("xsel",     &["--clipboard", "--input"]),
     ];

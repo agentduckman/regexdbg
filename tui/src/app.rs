@@ -58,6 +58,7 @@ pub struct App {
     pub show_help:    bool,
     pub quit:         bool,
     pub notification: Option<(String, Instant)>,
+    pub diagram_active: bool,
 }
 
 impl App {
@@ -91,6 +92,7 @@ impl App {
             show_help:             false,
             quit:            false,
             notification:    None,
+            diagram_active:  false,
         }
     }
 
@@ -758,6 +760,34 @@ impl App {
         self.notification = Some((msg, Instant::now()));
     }
 
+    pub fn open_diagram(&mut self) {
+        if self.pattern.is_empty() {
+            self.notification = Some(("Pattern is empty — nothing to diagram".into(), Instant::now()));
+            return;
+        }
+        let path = diagram_pattern_path();
+        let _ = std::fs::write(&path, &self.pattern);
+        if !self.diagram_active {
+            match Command::new("regexdbg-diagram")
+                .arg(&path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+            {
+                Ok(_child) => {
+                    self.diagram_active = true;
+                    self.notification = Some(("Diagram opening in browser\u{2026}".into(), Instant::now()));
+                }
+                Err(_) => {
+                    self.notification = Some(("regexdbg-diagram not found in PATH".into(), Instant::now()));
+                }
+            }
+        } else {
+            self.notification = Some(("Diagram updated".into(), Instant::now()));
+        }
+    }
+
     fn recompute(&mut self) {
         self.pattern_dirty = false;
 
@@ -783,6 +813,10 @@ impl App {
                 self.matches       = Vec::new();
                 self.match_index   = 0;
             }
+        }
+
+        if self.diagram_active {
+            let _ = std::fs::write(diagram_pattern_path(), &self.pattern);
         }
     }
 
@@ -881,6 +915,10 @@ fn line_col_to_byte(dl: &DisplayLine, col: usize) -> usize {
     } else {
         dl.byte_start // empty line
     }
+}
+
+fn diagram_pattern_path() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("regexdbg_live_{}.pattern", std::process::id()))
 }
 
 /// Write `data` to the system clipboard.

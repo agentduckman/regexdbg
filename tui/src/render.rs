@@ -356,6 +356,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from("  F1              this help"),
         Line::from("  F2              copy pattern to clipboard"),
+        Line::from("  F5              open live railroad diagram in browser"),
         Line::from(""),
         Line::from(Span::styled("  (any key to close)", STYLE_DIM)),
     ];

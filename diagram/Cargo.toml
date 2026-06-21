@@ -1,0 +1,8 @@
+[package]
+name = "diagram"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "regexdbg-diagram"
+path = "src/main.rs"

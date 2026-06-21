@@ -91,6 +91,7 @@ fn handle_pattern_vim_normal(app: &mut App, code: KeyCode, modifiers: KeyModifie
         | (KeyCode::Char('c'), KeyModifiers::CONTROL) => app.quit = true,
         (KeyCode::F(1), _) => app.show_help = true,
         (KeyCode::F(2), _) => app.copy_pattern_to_clipboard(),
+        (KeyCode::F(5), _) => app.open_diagram(),
 
         // Cursor motion
         (KeyCode::Char('h'), _) | (KeyCode::Left,  _) => app.pattern_cursor_left(),
@@ -212,6 +213,7 @@ fn handle_vim_normal(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
         (KeyCode::F(1), _) => app.show_help = true,
         (KeyCode::F(2), _) => app.copy_pattern_to_clipboard(),
         (KeyCode::F(3), _) => app.next_match(),
+        (KeyCode::F(5), _) => app.open_diagram(),
         (KeyCode::F(4), _) => app.prev_match(),
 
         (KeyCode::Char('h'), _) | (KeyCode::Left,  _) => { app.content_cursor_left();  app.scroll_to_cursor(); }
@@ -332,6 +334,7 @@ fn handle_content_nav(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
         (KeyCode::Char('/'), _) => app.focus = Focus::Pattern,
         (KeyCode::F(1), _) => app.show_help = true,
         (KeyCode::F(2), _) => app.copy_pattern_to_clipboard(),
+        (KeyCode::F(5), _) => app.open_diagram(),
 
         (KeyCode::Up,   _) | (KeyCode::Char('k'), _) => app.scroll_up(1),
         (KeyCode::Down, _) | (KeyCode::Char('j'), _) => app.scroll_down(1),

@@ -8,6 +8,8 @@ A terminal UI PCRE2 regex debugger for developing detections against raw byte co
 
 ![TUI](images/screen1.png)
 
+![Raildoad](images/screen2.png)
+
 ## Requirements
 
 - Rust (stable, 1.70+)

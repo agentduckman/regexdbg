@@ -10,7 +10,13 @@ function update(){
         try{
           var n=p.replace(/\(\?P</g,'(?<');
           var e=n.replace(/\//g,'\\/');
-          RegExper.render('/'+e+'/',el);
+          var pr=RegExper.render('/'+e+'/',el);
+          if(pr&&pr.then){
+            pr.catch(function(err){
+              el.innerHTML='<p style="color:red">Render error: '+
+                (''+err).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>';
+            });
+          }
         }catch(err){
           el.innerHTML='<p style="color:red">Cannot visualize: '+
             (''+err).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>';

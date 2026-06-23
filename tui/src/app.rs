@@ -59,6 +59,7 @@ pub struct App {
     pub quit:         bool,
     pub notification: Option<(String, Instant)>,
     pub diagram_active: bool,
+    diagram_child:      Option<std::process::Child>,
 }
 
 impl App {
@@ -93,6 +94,7 @@ impl App {
             quit:            false,
             notification:    None,
             diagram_active:  false,
+            diagram_child:   None,
         }
     }
 
@@ -775,7 +777,8 @@ impl App {
                 .stderr(Stdio::null())
                 .spawn()
             {
-                Ok(_child) => {
+                Ok(child) => {
+                    self.diagram_child = Some(child);
                     self.diagram_active = true;
                     self.notification = Some(("Diagram opening in browser\u{2026}".into(), Instant::now()));
                 }
@@ -885,6 +888,15 @@ impl App {
             }
         }
         out
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.diagram_child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 }
 
